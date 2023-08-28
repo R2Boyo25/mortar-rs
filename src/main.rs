@@ -1,8 +1,8 @@
 use mortar::mortar::embedded_eval;
 
-fn main() {
+fn main() {   
     let mortar = mortar::mortar::Mortar::new();
-    let cwd: &str = "test_dir";
+    let cwd: &str = "src";
 
     embedded_eval!(mortar, cwd, "star/mortar.star");
 }
