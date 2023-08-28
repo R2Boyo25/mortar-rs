@@ -2,37 +2,37 @@ use normalize_path::NormalizePath;
 use std::path::PathBuf;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Path {
+pub struct Label {
+    pub repository: String,
     pub package: String,
-    pub dir: String,
     pub target: String,
     pub exact: bool,
 }
 
-impl Path {
-    /// Creates a new [`Path`].
+impl Label {
+    /// Creates a new [`Label`].
     ///
     /// # Examples
     ///
     /// ```
-    /// use mortar::path::Path;
+    /// use mortar::label::Label;
     ///
-    /// assert_eq!(Path::new("@package_name//abc:something", "abc", "."), Path {package: "package_name".to_owned(), dir: "/abc".to_owned(), target: "something".to_owned(), exact: false});
+    /// assert_eq!(Label::new("@package_name//abc:something", "abc", "."), Label {package: "package_name".to_owned(), dir: "/abc".to_owned(), target: "something".to_owned(), exact: false});
     /// ```
     /// ```
-    /// use mortar::path::Path;
+    /// use mortar::label::Label;
     ///
     /// assert_eq!(
-    ///     Path::new("!something:abc", "test", "a_dir"),
-    ///     Path {package: "test".to_owned(), dir: "a_dir/something".to_owned(), target: "abc".to_owned(), exact: true}
+    ///     Label::new("!something:abc", "test", "a_dir"),
+    ///     Label {package: "test".to_owned(), dir: "a_dir/something".to_owned(), target: "abc".to_owned(), exact: true}
     /// )
     /// ```
-    pub fn new<S: AsRef<str>>(path: S, cur_package: S, cur_dir: S) -> Self {
+    pub fn new<S: AsRef<str>>(label: S, current_repository: S, current_package: S) -> Self {
         Self::parse(path, cur_package, cur_dir).unwrap()
     }
 
-    /// Same as [`Path::new`] except it returns a [`Result`].
-    pub fn parse<S: AsRef<str>>(path: S, cur_package: S, cur_dir: S) -> Result<Self, &'static str> {
+    /// Same as [`Label::new`] except it returns a [`Result`].
+    pub fn parse<S: AsRef<str>>(label: S, current_repository: S, current_package: S) -> Result<Self, &'static str> {
         if let Some(caps) = regex::Regex::new("^((?:@[a-zA-Z_-]+)?)([!/])(/[^:]+):([^:/]+)$")
             .unwrap()
             .captures(path.as_ref())
@@ -95,13 +95,13 @@ impl Path {
 
 #[cfg(test)]
 mod tests {
-    use crate::path::Path;
+    use crate::label::Label;
 
     #[test]
     fn relative_path() {
         assert_eq!(
-            Path::new("a_dir:a_file", "default_package", "cur_dir"),
-            Path {
+            Label::new("a_dir:a_file", "default_package", "cur_dir"),
+            Label {
                 package: "default_package".to_owned(),
                 dir: "cur_dir/a_dir".to_owned(),
                 target: "a_file".to_owned(),
@@ -113,12 +113,12 @@ mod tests {
     #[test]
     fn fully_qualifed_path() {
         assert_eq!(
-            Path::new(
+            Label::new(
                 "@another_package!/different_dir/../another_dir:another_file",
                 "default_package",
                 "cur_dir"
             ),
-            Path {
+            Label {
                 package: "another_package".to_owned(),
                 dir: "/another_dir".to_owned(),
                 target: "another_file".to_owned(),

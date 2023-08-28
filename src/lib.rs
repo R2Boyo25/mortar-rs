@@ -1,3 +1,3 @@
 pub mod dag;
 pub mod mortar;
-pub mod path;
+pub mod label;
