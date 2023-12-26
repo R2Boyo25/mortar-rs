@@ -25,6 +25,8 @@ impl Environment {
         }
     }
 
+    /// Returns a list of commands needed to initialize the environment.
+    /// The last command will always be the proot command.
     pub fn as_commands(&self) -> Vec<Command> {
         let mut init_commands: Vec<Command> = vec![];
         let mut args: Vec<String> = vec![];
@@ -46,10 +48,12 @@ impl Environment {
         init_commands
     }
 
+    /// Returns a reference to a file in this environment.
     pub fn get_reference(&self, path: &Path) -> Reference {
         Reference::new(Some(self.id), path)
     }
 
+    /// Returns a list of commands needed to run a command in the environment.
     pub fn run_command(&self, command: &mut Command) -> Vec<Command> {
         let mut commands = self.as_commands();
 

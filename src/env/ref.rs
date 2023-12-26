@@ -51,6 +51,7 @@ impl Mapping {
         tmp
     }
 
+    /// Shortcut for creating Mappings from the filesystem.
     pub fn from_fs(from: &Path, alias: Option<&Path>, read_only: bool) -> Self {
         Self {
             from: Reference::new(None, from),
@@ -59,6 +60,7 @@ impl Mapping {
         }
     }
 
+    /// Shortcut to create a mapping from a [[Reference]]. This is the [[new()]] method.
     pub fn from_reference(from: Reference, alias: Option<&Path>, read_only: bool) -> Self {
         Self {
             from,
@@ -67,6 +69,7 @@ impl Mapping {
         }
     }
 
+    /// Converts this mapping into a read-only bindfs mount command.
     pub fn as_bind(&self, out_dir: &Path) -> Command {
         let mut mount_path = out_dir.to_path_buf();
 
