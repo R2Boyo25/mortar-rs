@@ -8,7 +8,7 @@ use r#ref::{Mapping, Reference};
 
 type EnvironmentID = uuid::Uuid;
 
-/// # [[Environment]] - Command runner state
+/// # [[Environment]] - Command runner state using Proot
 #[derive(PartialEq, Debug)]
 pub struct Environment {
     pub id: EnvironmentID,
@@ -42,7 +42,12 @@ impl Environment {
             }
         });
 
-        command.arg("-r").arg(self.loc.to_str().unwrap()).arg("-w").arg("/").args(args);
+        command
+            .arg("-r")
+            .arg(self.loc.to_str().unwrap())
+            .arg("-w")
+            .arg("/")
+            .args(args);
 
         init_commands.push(command);
         init_commands
@@ -69,9 +74,9 @@ impl Environment {
 
 #[cfg(test)]
 mod tests {
+    use super::r#ref::Mapping;
     use crate::env::{r#ref::Reference, Environment};
     use std::{path::PathBuf, process::Command};
-    use super::r#ref::Mapping;
 
     /// Creates the common environment for the rest of testing.
     fn create_env() -> Environment {
@@ -93,9 +98,8 @@ mod tests {
                 .map(|v| format!("{:?}", v))
                 .collect::<Vec<_>>(),
             vec![
-                "\"bindfs\" \"--no-allow-other\" \"-r\" \"/tmp/c/7\" \"/tmp/c/7\""
-                    .to_string(),
-                    "\"proot\" \"-r\" \"/tmp/a b\" \"-w\" \"/\" \"-b\" \"/tmp/b/3 3\"".to_string(),
+                "\"bindfs\" \"--no-allow-other\" \"-r\" \"/tmp/c/7\" \"/tmp/c/7\"".to_string(),
+                "\"proot\" \"-r\" \"/tmp/a b\" \"-w\" \"/\" \"-b\" \"/tmp/b/3 3\"".to_string(),
             ]
         );
     }
@@ -114,10 +118,13 @@ mod tests {
     fn run_command() {
         let a = format!(
             "{:?}",
-            Environment::new(PathBuf::from("/tmp/a"), vec![Mapping::from_fs(&PathBuf::from("/nix"), None, false)])
-                .run_command(Command::new("echo").arg("Hello, World!"))
-                .last()
-                .unwrap()
+            Environment::new(
+                PathBuf::from("/tmp/a"),
+                vec![Mapping::from_fs(&PathBuf::from("/nix"), None, false)]
+            )
+            .run_command(Command::new("echo").arg("Hello, World!"))
+            .last()
+            .unwrap()
         );
 
         assert_eq!(

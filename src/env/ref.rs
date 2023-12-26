@@ -1,5 +1,8 @@
 use crate::env::EnvironmentID;
-use std::{path::{Path, PathBuf}, process::Command};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 /// References reference locations within [[Environment]]s
 ///
@@ -56,7 +59,7 @@ impl Mapping {
         Self {
             from: Reference::new(None, from),
             alias: alias.map(|v| v.to_path_buf()),
-            read_only
+            read_only,
         }
     }
 
@@ -81,12 +84,11 @@ impl Mapping {
 
         let mut com = Command::new("bindfs");
 
-        com
-            .arg("--no-allow-other")
+        com.arg("--no-allow-other")
             .arg("-r")
             .arg(self.from.real_path())
             .arg(mount_path);
-        
+
         com
     }
 }
@@ -106,6 +108,13 @@ pub mod tests {
 
     #[test]
     pub fn get_binding() {
-        assert_eq!(format!("{:?}", Mapping::from_fs(&PathBuf::from("/a:a"), Some(&PathBuf::from("/b")), true).as_bind(&PathBuf::from("/test"))), "\"bindfs\" \"--no-allow-other\" \"-r\" \"/a:a\" \"/b\"");
+        assert_eq!(
+            format!(
+                "{:?}",
+                Mapping::from_fs(&PathBuf::from("/a:a"), Some(&PathBuf::from("/b")), true)
+                    .as_bind(&PathBuf::from("/test"))
+            ),
+            "\"bindfs\" \"--no-allow-other\" \"-r\" \"/a:a\" \"/b\""
+        );
     }
 }
