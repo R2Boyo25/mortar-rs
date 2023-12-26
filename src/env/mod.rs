@@ -71,9 +71,9 @@ impl Environment {
 mod tests {
     use crate::env::{r#ref::Reference, Environment};
     use std::{path::PathBuf, process::Command};
-
     use super::r#ref::Mapping;
 
+    /// Creates the common environment for the rest of testing.
     fn create_env() -> Environment {
         Environment::new(
             PathBuf::from("/tmp/a b"),
@@ -85,7 +85,7 @@ mod tests {
     }
 
     #[test]
-    fn init() {
+    fn as_commands() {
         assert_eq!(
             create_env()
                 .as_commands()
@@ -93,15 +93,15 @@ mod tests {
                 .map(|v| format!("{:?}", v))
                 .collect::<Vec<_>>(),
             vec![
-                "\"bindfs\" \"--no-allow-other\" \"-r\" \"/tmp/c/\\\"7\" \"/tmp/c/\\\"7\""
+                "\"bindfs\" \"--no-allow-other\" \"-r\" \"/tmp/c/7\" \"/tmp/c/7\""
                     .to_string(),
-                "\"proot\" \"-r\" \"/tmp/a \\\"b\" \"-b\" \"/tmp/b/3 3\"".to_string(),
+                    "\"proot\" \"-r\" \"/tmp/a b\" \"-w\" \"/\" \"-b\" \"/tmp/b/3 3\"".to_string(),
             ]
         );
     }
 
     #[test]
-    fn idk() {
+    fn get_reference() {
         let env = create_env();
 
         assert_eq!(
@@ -120,10 +120,9 @@ mod tests {
                 .unwrap()
         );
 
-        println!("{a}");
         assert_eq!(
             a,
-            ""
+            "\"proot\" \"-r\" \"/tmp/a\" \"-w\" \"/\" \"-b\" \"/nix\" \"echo\" \"Hello, World!\""
         )
     }
 }
