@@ -8,43 +8,55 @@ use nom::{
 };
 use nom_regex::str::re_match;
 use regex::Regex;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf, str::FromStr};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Label {
     pub repository: String,
     pub package: String,
     pub target: String,
-    pub exact: bool,
+}
+
+fn nom_error(message: &str, typ: nom::error::ErrorKind) -> nom::Err<nom::error::Error<&str>> {
+    nom::Err::Error(nom::error::Error::new(message, typ))
+}
+
+fn fre_match(re: &fancy_regex::Regex) -> impl Fn(&str) -> IResult<&str, &str> + '_ {
+    move |i: &str| {
+        if let Ok(Some(mat)) = re.find(i) {
+            Ok((&i[mat.end()..], &i[mat.start()..mat.end()]))
+        } else {
+            Err(nom_error(
+                "Didn't match",
+                nom::error::ErrorKind::RegexpMatch,
+            ))
+        }
+    }
 }
 
 fn target(target: &str) -> IResult<&str, &str> {
     context(
         "target",
-        re_match(Regex::new(r#"[a-zA-Z0-9!%@^_#"$&'()*\-+,;<=>?\[\]{|}~/. ]+"#).unwrap()),
+        re_match(Regex::new(r#"^[a-zA-Z0-9!%@^_#"$&'()*\-+,;<=>?\[\]{|}~/. ]+"#).unwrap()),
     )(target)
 }
 
 fn package(pkg: &str) -> IResult<&str, &str> {
     context(
         "package",
-        re_match(Regex::new(r"[A-Za–z0–9/\-.@_]+").unwrap()),
+        fre_match(&fancy_regex::Regex::new(r"^[^\n$:]+?(?=:(?:.|\s)+$|$)").unwrap()),
     )(pkg)
 }
 
 fn repository(repo: &str) -> IResult<&str, &str> {
     context(
         "repository",
-        re_match(Regex::new(r"[A-Za–z0–9/\-._]+").unwrap()),
+        re_match(Regex::new(r"^[-A-Za-z0-9\/._]+").unwrap()),
     )(repo)
 }
 
 fn root(input: &str) -> IResult<&str, &str> {
     alt((tag("//"), tag("!/")))(input)
-}
-
-fn nom_error(message: &str, typ: nom::error::ErrorKind) -> nom::Err<nom::error::Error<&str>> {
-    nom::Err::Error(nom::error::Error::new(message, typ))
 }
 
 impl Label {
@@ -55,14 +67,14 @@ impl Label {
     /// ```
     /// use mortar::label::Label;
     ///
-    /// assert_eq!(Label::new("@package_name//abc:something", "abc", "."), Label {repository: "package_name".to_owned(), package: "/abc".to_owned(), target: "something".to_owned(), exact: false});
+    /// assert_eq!(Label::new("@package_name//abc:something", "abc", "."), Ok(Label {repository: "package_name".to_owned(), package: "/abc".to_owned(), target: "something".to_owned(), exact: false}));
     /// ```
     /// ```
     /// use mortar::label::Label;
     ///
     /// assert_eq!(
-    ///     Label::new("!something:abc", "test", "a_dir"),
-    ///     Label {repository: "test".to_owned(), package: "a_dir/something".to_owned(), target: "abc".to_owned(), exact: true}
+    ///     Label::new("something:abc", "test", "a_dir"),
+    ///     Ok(Label {repository: "test".to_owned(), package: "a_dir/something".to_owned(), target: "abc".to_owned(), exact: false})
     /// )
     /// ```
     pub fn new<S: AsRef<str>>(
@@ -137,19 +149,21 @@ impl Label {
                     },
                 ),
                 map(
-                    all_consuming(preceded(opt(tag(":")), target)),
-                    |parsed_target| HashMap::from([("target", parsed_target)]),
-                ),
-                map(
-                    all_consuming(tuple((root, package, opt(preceded(tag(":"), target))))),
+                    all_consuming(tuple((opt(root), package, opt(preceded(tag(":"), target))))),
                     |(parsed_separator, parsed_package, parsed_target)| {
-                        let mut m = HashMap::from([
-                            ("separator", parsed_separator),
-                            ("package", parsed_package),
-                        ]);
+                        let mut m = HashMap::from([("package", parsed_package)]);
+
+                        if let Some(sep) = parsed_separator {
+                            m.insert("separator", sep);
+                        }
+
                         parsed_target.map(|v| m.insert("target", v));
                         m
                     },
+                ),
+                map(
+                    all_consuming(preceded(opt(tag(":")), target)),
+                    |parsed_target| HashMap::from([("target", parsed_target)]),
                 ),
             )),
             eof,
@@ -175,9 +189,24 @@ impl Label {
             "",
             Self {
                 repository: repo.to_string(),
-                package: hmap.get("package").unwrap_or(&current_package).to_string(),
+                package: if hmap.contains_key("separator") && hmap.contains_key("package") {
+                    hmap.get("package").unwrap_or(&current_package).to_string()
+                } else if hmap.contains_key("package") {
+                    hmap.get("package")
+                        .map(|pkg| {
+                            if current_package == "." {
+                                return pkg.to_string();
+                            }
+
+                            let mut new_package = PathBuf::from_str(current_package).unwrap();
+                            new_package.push(pkg);
+                            new_package.to_str().unwrap().to_string()
+                        })
+                        .unwrap_or(current_package.to_owned())
+                } else {
+                    current_package.to_owned()
+                },
                 target: target?.to_string(),
-                exact: hmap.get("separator").unwrap_or(&"//") == &"!/",
             },
         ))
     }
@@ -195,7 +224,6 @@ mod tests {
                 repository: "default_repo".to_owned(),
                 package: "default_package".to_owned(),
                 target: "a_target".to_owned(),
-                exact: false
             }
         );
     }
@@ -208,7 +236,6 @@ mod tests {
                 repository: "default_repo".to_owned(),
                 package: "a_package".to_owned(),
                 target: "a_target".to_owned(),
-                exact: false
             }
         );
     }
@@ -218,7 +245,6 @@ mod tests {
         assert_eq!(
             Label::new(
                 "@another_repo//different_package:another_target",
-                //"@another_package!/different_dir/../another_dir:another_file",
                 "default_repo",
                 "current_package"
             )
@@ -227,7 +253,6 @@ mod tests {
                 repository: "another_repo".to_owned(),
                 package: "another_package".to_owned(),
                 target: "another_target".to_owned(),
-                exact: true
             }
         );
     }

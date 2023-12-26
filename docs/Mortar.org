@@ -1,0 +1,54 @@
+#+TITLE: Mortar - Reproducible File Transformations
+
+Mortar is a functional, declarative file transformation system with extra emphasis on functioning as a reproducible build system.
+
+** Transformations
+
+Everything is defined as transformations on a strictly declared state.
+Examples of transformations:
+- Compiling a C source file into an object file
+- Generating an HTML file from a Markdown source file
+- Minifying a CSS file
+- Building an archive
+- Packing CSS and JS into a web bundle
+
+** Isolation
+
+Everything is isolated. There is no access to the external system, except declared strictly.
+
+*** Dependencies
+
+Every transformation can pull in dependencies that get registered in the transformation's environment.
+Examples of dependencies:
+- directories
+- files
+- libraries
+- executables
+
+*** Additional notes
+
+- build / run commands should have a ~--transient~ flag and ~MORTAR_TRANSIENT~ environment variable that prevents it from caching build artifacts
+  Why? useful for CI or testing
+- Proot-based containerization? Custom FUSE FS for dependencies that tracks modifications but doesn't modify the inputs?
+- Potentially require that transformations be made for dependent files?
+- Need a thing for dependencies that persist with later transformations
+  - Like Libtool and Rust's stupid depedencies-that-only-get-used-during-executable-linking
+- Integration with other package management systems?
+  - Crates.io
+  - Conan
+  - VCPkg
+  - etc.
+- Integration with library systems?
+  - pkg-config
+  - CMake
+  - Meson???
+- Everything should be definable by the producer, consumer, and user
+  - ex. compilers, transformation types
+
+*** Scripting
+
+- findExec :: find executable
+- findLib :: find shared object
+
+- TBH Lua is looking like a great language for configuration
+  - I need a bit more specialization, though? Custom Lua?
