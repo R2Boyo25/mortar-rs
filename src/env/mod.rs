@@ -1,4 +1,7 @@
-use std::{path::{Path, PathBuf}, process::Command};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 pub mod r#ref;
 use r#ref::{Mapping, Reference};
@@ -22,49 +25,75 @@ impl Environment {
         }
     }
 
-    pub fn as_command(&self) -> Command {
+    pub fn as_commands(&self) -> Vec<Command> {
+        let mut init_commands: Vec<Command> = vec![];
         let mut args: Vec<String> = vec![];
-
-        self.inputs.iter().for_each(|file| {
-            args.push("-b".to_string());
-            args.push(file.to_string());
-        });
-
         let mut command = Command::new("proot");
 
-        command
-            .arg("-r")
-            .arg(self.loc.to_str().unwrap())
-            .args(args);
+        self.inputs.iter().for_each(|file| {
+            // If a mapping is read only, it must be mounted with `bindfs,` not `proot.`
+            if file.read_only {
+                init_commands.push(file.as_bind(&self.loc));
+            } else {
+                args.push("-b".to_string());
+                args.push(file.to_string());
+            }
+        });
 
-        command
+        command.arg("-r").arg(self.loc.to_str().unwrap()).arg("-w").arg("/").args(args);
+
+        init_commands.push(command);
+        init_commands
     }
 
     pub fn get_reference(&self, path: &Path) -> Reference {
         Reference::new(Some(self.id), path)
+    }
+
+    pub fn run_command(&self, command: &mut Command) -> Vec<Command> {
+        let mut commands = self.as_commands();
+
+        commands
+            .last_mut()
+            .unwrap()
+            .arg(command.get_program())
+            .args(command.get_args());
+
+        commands
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::env::{r#ref::Reference, Environment};
-    use std::path::PathBuf;
+    use std::{path::PathBuf, process::Command};
 
     use super::r#ref::Mapping;
 
     fn create_env() -> Environment {
         Environment::new(
-            PathBuf::from("/tmp/a \"b"),
+            PathBuf::from("/tmp/a b"),
             vec![
-                Mapping::from_fs(&PathBuf::from("/tmp/b/3 3"), None),
-                Mapping::from_fs(&PathBuf::from("/tmp/c/\"7"), None),
+                Mapping::from_fs(&PathBuf::from("/tmp/b/3 3"), None, false),
+                Mapping::from_fs(&PathBuf::from("/tmp/c/7"), None, true),
             ],
         )
     }
 
     #[test]
     fn init() {
-        assert_eq!(format!("{:?}", create_env().as_command()), "\"proot\" \"-r\" \"/tmp/a \\\"b\" \"-b\" \"/tmp/b/3 3\" \"-b\" \"/tmp/c/\\\"7\"".to_string());
+        assert_eq!(
+            create_env()
+                .as_commands()
+                .iter()
+                .map(|v| format!("{:?}", v))
+                .collect::<Vec<_>>(),
+            vec![
+                "\"bindfs\" \"--no-allow-other\" \"-r\" \"/tmp/c/\\\"7\" \"/tmp/c/\\\"7\""
+                    .to_string(),
+                "\"proot\" \"-r\" \"/tmp/a \\\"b\" \"-b\" \"/tmp/b/3 3\"".to_string(),
+            ]
+        );
     }
 
     #[test]
@@ -75,5 +104,22 @@ mod tests {
             env.get_reference(&PathBuf::from("/smth")),
             Reference::new(Some(env.id), &PathBuf::from("/smth"))
         );
+    }
+
+    #[test]
+    fn run_command() {
+        let a = format!(
+            "{:?}",
+            Environment::new(PathBuf::from("/tmp/a"), vec![Mapping::from_fs(&PathBuf::from("/nix"), None, false)])
+                .run_command(Command::new("echo").arg("Hello, World!"))
+                .last()
+                .unwrap()
+        );
+
+        println!("{a}");
+        assert_eq!(
+            a,
+            ""
+        )
     }
 }
