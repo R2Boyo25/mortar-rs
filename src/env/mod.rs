@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::{path::{Path, PathBuf}, process::Command};
 
 pub mod r#ref;
 use r#ref::{Mapping, Reference};
@@ -23,19 +23,19 @@ impl Environment {
     }
 
     pub fn as_command(&self) -> Command {
-        let mut command = "proot".to_string();
-
-        // Paths may have quotes and/or spaces
-        command.push_str(" -r \"");
-        command.push_str(&self.loc.to_str().unwrap().replace('\"', "\\\""));
-        command.push_str("\"");
+        let mut args: Vec<String> = vec![];
 
         self.inputs.iter().for_each(|file| {
-            // Ditto, but the quotes are already sanitized in `to_string()`.
-            command.push_str(" -b \"");
-            command.push_str(&file.to_string());
-            command.push_str("\"");
+            args.push("-b".to_string());
+            args.push(file.to_string());
         });
+
+        let mut command = Command::new("proot");
+
+        command
+            .arg("-r")
+            .arg(self.loc.to_str().unwrap())
+            .args(args);
 
         command
     }
@@ -64,7 +64,7 @@ mod tests {
 
     #[test]
     fn init() {
-        assert_eq!(create_env().as_command(), "proot -r \"/tmp/a \\\"b\" -b \"/tmp/b/3 3\" -b \"/tmp/c/\\\"7\"".to_string());
+        assert_eq!(format!("{:?}", create_env().as_command()), "\"proot\" \"-r\" \"/tmp/a \\\"b\" \"-b\" \"/tmp/b/3 3\" \"-b\" \"/tmp/c/\\\"7\"".to_string());
     }
 
     #[test]

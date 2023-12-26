@@ -39,8 +39,8 @@ pub struct Mapping {
 
 impl Mapping {
     pub fn to_string(&self) -> String {
-        // Handle paths with colons and names with quotes.
-        let mut tmp = self.from.real_path().replace(':', "\\:").replace('\"', "\\\"");
+        // Handle paths with colons.
+        let mut tmp = self.from.real_path().replace(':', "\\:");
 
         if let Some(alias) = self.alias.clone() {
             tmp.push_str(":");
@@ -73,8 +73,8 @@ pub mod tests {
     #[test]
     pub fn yes() {
         assert_eq!(
-            Mapping::from_fs(&PathBuf::from("/a\":a"), Some(&PathBuf::from("/b"))).to_string(),
-            "/a\\\"\\:a:/b"
+            Mapping::from_fs(&PathBuf::from("/a:a"), Some(&PathBuf::from("/b"))).to_string(),
+            "/a\\:a:/b"
         );
     }
 }
