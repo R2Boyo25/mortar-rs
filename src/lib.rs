@@ -1,3 +1,5 @@
+#![feature(test)]
+
 pub mod dag;
 pub mod label;
 pub mod mortar;

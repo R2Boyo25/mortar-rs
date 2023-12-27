@@ -103,8 +103,9 @@ impl Iterator for Lexer {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.consume_whitespace();
+        let start_loc = self.get_location();
         let start_idx = self.idx;
-        
+
         if let Some(c) = self.iter.next() {
             self.inc_loc(c);
 
@@ -122,7 +123,9 @@ impl Iterator for Lexer {
                 "=" => self.rep2("=", TokenKind::Equal, TokenKind::EqualEqual),
                 "<" => self.rep2("<", TokenKind::Less, TokenKind::LessLess),
                 ">" => self.rep2(">", TokenKind::Greater, TokenKind::GreaterGreater),
-                "!" => self.single_token(TokenKind::Bang),
+                "!" => self.rep2("=", TokenKind::Bang, TokenKind::BangEqual),
+                "," => self.single_token(TokenKind::Comma),
+                ":" => self.rep2(":", TokenKind::Colon, TokenKind::ColonColon),
                 _ => {
                     if c.contains(char::is_alphabetic) || c == "_" || is_emoji(c) {
                         // Identifier
@@ -169,6 +172,27 @@ impl Iterator for Lexer {
                             },
                             start_idx,
                         ));
+                    } else if c.contains("\"") || c.contains("'") {
+                        // String
+
+                        let start_char = c;
+                        let mut last: Option<&str> = None;
+
+                        while let Some(c) = self.iter.next() {
+                            self.inc_loc(c);
+
+                            if c == start_char && last != Some("\\") {
+                                return Some(Token::new(
+                                    self.get_location(),
+                                    TokenKind::String,
+                                    &self.body[start_idx + 1..self.idx - 1],
+                                ));
+                            }
+
+                            last = Some(c);
+                        }
+
+                        panic!("Unclosed string at {}", start_loc);
                     }
 
                     panic!("Unexpected character '{c}'");
@@ -216,5 +240,26 @@ pub mod tests {
 
         assert_eq!(token.contents, "d");
         assert_eq!(token.kind, TokenKind::Identifier);
+    }
+
+    #[test]
+    fn string() {
+        let mut lexer = Lexer::new("\"some string\"");
+        let token = lexer.next().unwrap();
+
+        assert_eq!(token.contents, "some string");
+        assert_eq!(token.kind, TokenKind::String);
+    }
+
+    extern crate test;
+    use test::Bencher;
+
+    #[bench]
+    fn perf(bencher: &mut Bencher) {
+        bencher.iter(|| {
+            let lexer = Lexer::new("fn something(abc: 123) {}\nstruct abc {hewwo: i32, awawi: ✨}");
+
+            let _ = lexer.collect::<Vec<_>>();
+        });
     }
 }

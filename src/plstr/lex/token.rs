@@ -5,11 +5,18 @@ pub struct Location {
     pub index: usize,
 }
 
+impl std::fmt::Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}:{}", self.line + 1, self.column + 1)
+    }
+}
+
 #[derive(PartialEq, Debug)]
 pub enum TokenKind {
     Identifier,
     Integer,
     Float,
+    String,
 
     OpenBrace,
     CloseBrace,
@@ -26,12 +33,16 @@ pub enum TokenKind {
     Less,
     Greater,
     Bang,
+    Comma,
+    Colon,
 
+    BangEqual,
     EqualEqual,
     LessLess,
     GreaterGreater,
     PlusPlus,
     HyphenHyphen,
+    ColonColon,
 }
 
 impl std::fmt::Display for TokenKind {
