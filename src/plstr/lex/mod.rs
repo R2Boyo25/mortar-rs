@@ -6,7 +6,7 @@ use token::{Location, Token, TokenKind};
 
 pub struct Lexer {
     body: String,
-    iter: Peekable<Box<dyn Iterator<Item = char>>>,
+    iter: Peekable<Box<dyn Iterator<Item = &'static str>>>,
     line: usize,
     col: usize,
     idx: usize,
@@ -16,7 +16,7 @@ impl Lexer {
     pub fn new(body: &'static str) -> Self {
         Self {
             body: body.to_owned(),
-            iter: (Box::new(body.chars()) as Box<dyn Iterator<Item = char>>).peekable(),
+            iter: (Box::new(body.graphemes(true)) as Box<dyn Iterator<Item = &str>>).peekable(),
             line: 0,
             col: 0,
             idx: 0,
@@ -25,15 +25,11 @@ impl Lexer {
 
     fn consume_whitespace(&mut self) {
         while let Some(c) = self.iter.peek() {
-            if !c.is_whitespace() {
+            if !(vec![" ", "\t", "\n", "\r", "\r\n"].contains(c)) {
                 break;
             }
 
             let c = c.to_owned();
-
-            if c == '\n' {
-                self.new_line(c);
-            }
 
             self.iter.next();
             self.inc_loc(c);
@@ -48,15 +44,20 @@ impl Lexer {
         }
     }
 
-    fn new_line(&mut self, c: char) {
+    fn new_line(&mut self, c: &str) {
         self.line += 1;
-        self.idx += c.len_utf8();
+        self.idx += c.len();
         self.col = 0;
     }
 
-    fn inc_loc(&mut self, c: char) {
+    fn inc_loc(&mut self, c: &str) {
+        if vec!["\n", "\r\n"].contains(&c) {
+            self.new_line(c);
+            return;
+        }
+
         self.col += 1;
-        self.idx += c.len_utf8();
+        self.idx += c.len();
     }
 
     fn new_token(&self, kind: TokenKind, start_idx: usize) -> Token {
@@ -67,7 +68,7 @@ impl Lexer {
         Some(self.new_token(kind, self.idx - 1))
     }
 
-    fn rep2(&mut self, c: char, first: TokenKind, second: TokenKind) -> Option<Token> {
+    fn rep2(&mut self, c: &str, first: TokenKind, second: TokenKind) -> Option<Token> {
         if self.iter.peek() == Some(&c) {
             self.iter.next();
             self.inc_loc(c);
@@ -77,11 +78,11 @@ impl Lexer {
         }
     }
 
-    fn two(&mut self, matcher: fn (char) -> Option<TokenKind>, other: TokenKind) -> Option<Token> {
+    fn two(&mut self, matcher: fn(&str) -> Option<TokenKind>, other: TokenKind) -> Option<Token> {
         if self.iter.peek() == None {
             return self.single_token(other);
         }
-        
+
         let c = *self.iter.peek().unwrap();
         if let Some(typ) = matcher(c) {
             self.iter.next();
@@ -93,8 +94,8 @@ impl Lexer {
     }
 }
 
-fn is_emoji(c: char) -> bool {
-    emojis::get(&c.to_string()).is_some()
+fn is_emoji(c: &str) -> bool {
+    emojis::get(c).is_some()
 }
 
 impl Iterator for Lexer {
@@ -103,32 +104,32 @@ impl Iterator for Lexer {
     fn next(&mut self) -> Option<Self::Item> {
         self.consume_whitespace();
         let start_idx = self.idx;
-
+        
         if let Some(c) = self.iter.next() {
             self.inc_loc(c);
 
             match c {
-                '{' => self.single_token(TokenKind::OpenBrace),
-                '}' => self.single_token(TokenKind::CloseBrace),
-                '(' => self.single_token(TokenKind::OpenParen),
-                ')' => self.single_token(TokenKind::CloseParen),
-                '[' => self.single_token(TokenKind::OpenBracket),
-                ']' => self.single_token(TokenKind::CloseBracket),
-                '+' => self.rep2('+', TokenKind::Plus, TokenKind::PlusPlus),
-                '-' => self.rep2('-', TokenKind::Hyphen, TokenKind::HyphenHyphen),
-                '/' => self.single_token(TokenKind::ForwardSlash),
-                '*' => self.single_token(TokenKind::Asterisk),
-                '=' => self.rep2('=', TokenKind::Equal, TokenKind::EqualEqual),
-                '<' => self.rep2('<', TokenKind::Less, TokenKind::LessLess),
-                '>' => self.rep2('>', TokenKind::Greater, TokenKind::GreaterGreater),
-                '!' => self.single_token(TokenKind::Bang),
+                "{" => self.single_token(TokenKind::OpenBrace),
+                "}" => self.single_token(TokenKind::CloseBrace),
+                "(" => self.single_token(TokenKind::OpenParen),
+                ")" => self.single_token(TokenKind::CloseParen),
+                "[" => self.single_token(TokenKind::OpenBracket),
+                "]" => self.single_token(TokenKind::CloseBracket),
+                "+" => self.rep2("+", TokenKind::Plus, TokenKind::PlusPlus),
+                "-" => self.rep2("-", TokenKind::Hyphen, TokenKind::HyphenHyphen),
+                "/" => self.single_token(TokenKind::ForwardSlash),
+                "*" => self.single_token(TokenKind::Asterisk),
+                "=" => self.rep2("=", TokenKind::Equal, TokenKind::EqualEqual),
+                "<" => self.rep2("<", TokenKind::Less, TokenKind::LessLess),
+                ">" => self.rep2(">", TokenKind::Greater, TokenKind::GreaterGreater),
+                "!" => self.single_token(TokenKind::Bang),
                 _ => {
-                    if c.is_alphabetic() || c == '_' || is_emoji(c) {
+                    if c.contains(char::is_alphabetic) || c == "_" || is_emoji(c) {
                         // Identifier
 
                         while let Some(c) = self.iter.peek() {
                             let c = c.to_owned();
-                            if c.is_alphanumeric() || c == '_'  || is_emoji(c) {
+                            if c.contains(char::is_alphanumeric) || c == "_" || is_emoji(c) {
                                 self.iter.next();
                                 self.inc_loc(c);
                             } else {
@@ -137,17 +138,17 @@ impl Iterator for Lexer {
                         }
 
                         return Some(self.new_token(TokenKind::Identifier, start_idx));
-                    } else if c.is_numeric() {
+                    } else if c.contains(char::is_numeric) {
                         // Number
                         let mut is_float = false;
 
                         while let Some(c) = self.iter.peek() {
-                            let c = c.clone();
+                            let c = c.to_owned();
 
-                            if c.is_numeric() {
+                            if c.contains(char::is_numeric) {
                                 self.iter.next();
                                 self.inc_loc(c);
-                            } else if c == '.' {
+                            } else if c == "." {
                                 if is_float {
                                     panic!("Float cannot have multiple decimal points.");
                                 }
@@ -185,7 +186,7 @@ pub mod tests {
     use super::Lexer;
 
     #[test]
-    fn a() {
+    fn basic_types() {
         let mut lexer = Lexer::new("   abc  23 2.3");
         let mut token = lexer.next().unwrap();
 
@@ -205,17 +206,15 @@ pub mod tests {
 
     #[test]
     fn unicode() {
-        let mut lexer = Lexer::new("a😭bc\r\na");
+        let mut lexer = Lexer::new("a😭bc\r\nd");
         let mut token = lexer.next().unwrap();
 
         assert_eq!(token.contents, "a😭bc");
         assert_eq!(token.kind, TokenKind::Identifier);
 
-        println!("{:?}", lexer.body.chars().collect::<Vec<_>>());
-
         token = lexer.next().unwrap();
 
-        assert_eq!(token.contents, "a");
+        assert_eq!(token.contents, "d");
         assert_eq!(token.kind, TokenKind::Identifier);
     }
 }
