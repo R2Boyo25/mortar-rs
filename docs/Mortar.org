@@ -16,7 +16,7 @@ Examples of transformations:
 
 Everything is isolated. There is no access to the external system, except declared strictly.
 
-*** Dependencies
+** Dependencies
 
 Every transformation can pull in dependencies that get registered in the transformation's environment.
 Examples of dependencies:
@@ -25,7 +25,7 @@ Examples of dependencies:
 - libraries
 - executables
 
-*** Additional notes
+** Additional notes
 
 - build / run commands should have a ~--transient~ flag and ~MORTAR_TRANSIENT~ environment variable that prevents it from caching build artifacts
   Why? useful for CI or testing
@@ -45,10 +45,27 @@ Examples of dependencies:
 - Everything should be definable by the producer, consumer, and user
   - ex. compilers, transformation types
 
-*** Scripting
+** Scripting
 
 - findExec :: find executable
 - findLib :: find shared object
+- commandTransformer :: creates a transformer based on a command
 
 - TBH Lua is looking like a great language for configuration
   - I need a bit more specialization, though? Custom Lua?
+
+#+BEGIN_SRC lua
+mdTransformer = commandTransformer findExec "mdc"
+#+END_SRC
+
+** Caching
+
+- cache at ~$XDG_CACHE_DIR/mortar~
+- hardlink files in/out of the cache
+
+** Distributed compilation
+
+- Connect to the build daemons
+- Check that the daemons have all the files that they need by comparing hashes,
+  - sync any files to them that they don't have.
+- Automatically find fastest connections between nodes to optimize file transfers (e.g. transfer from a server with a fast connection, rather than from your client which has a slow connection)
